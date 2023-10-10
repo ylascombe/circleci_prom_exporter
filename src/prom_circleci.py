@@ -1,8 +1,10 @@
 #! /usr/bin/env python3
 import os
-from typing import Dict, List
-import src.circleci as circleci
-from prometheus_client import Gauge
+from typing import Dict, List, Any
+from src.circleci import CircleCI
+from src.common import Config
+from prometheus_client import Gauge, REGISTRY
+from prometheus_client.metrics import MetricWrapperBase
 
 class PromCircleCi:
     """
@@ -11,8 +13,31 @@ class PromCircleCi:
     """
 
     def __init__(self) -> None:
-        token = os.getenv('CIRCLECI_TOKEN')
-        self.api = circleci.CircleCI(token=token)
+        token = Config().circleci_token
+        self.api = CircleCI(token=token)
+
+    def set_metric_value(self,
+                         name:str,
+                         desc:str,
+                         labels:Dict[str,str],
+                         value: Any
+    ) -> None:
+        # gauge = REGISTRY.get_sample_value(name, labels)
+        for metric in REGISTRY.collect():
+            for s in metric.samples:
+                if s.name == name:
+                    print("found metric")
+                    if s.labels.keys() == labels.keys():
+                        print("match !!!!!!!!!!!!!!!!!!!")
+                        s.value = value
+                        #metric.
+                        return
+                    else:
+                        print(f"labels differs\ngiven{labels}\nbrowsed{s.labels}")
+
+        print("not found -----------------------------")
+        new = Gauge(name, desc, labels.keys())
+        new.labels(labels.values()).set(value=value)
 
     def parse_insights(self, project_slug:str) -> None:
         """
@@ -25,8 +50,15 @@ class PromCircleCi:
         for group in res['project_data']:
             project_data = res['project_data'][group]
             for metric in project_data:
-                gauge = Gauge(f'{group}_{metric}', metric, ['project_slug'])
-                gauge.labels(project_slug).set(project_data[metric])
+                key = f'{group}_{metric}'
+                labels = {
+                    'project_slug' : project_slug
+                }
+                gauge = self.set_metric_value(name=key,
+                                              desc=metric,
+                                              labels=labels,
+                                              value=project_data[metric])
+                #gauge.labels(project_slug).set(project_data[metric])
 
 
         for workflow in res['project_workflow_data']:
