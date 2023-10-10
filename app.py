@@ -3,8 +3,9 @@ import os
 import sys
 import random
 import time
-import src.circleci as circleci
 import src.prom_circleci as prom_circleci
+from src.common import Config
+from src.github import GitHubOrganization
 from prometheus_client import start_http_server, Summary
 
 # FIXME copy pasted from prometheus_client readme
@@ -23,15 +24,19 @@ if __name__ == '__main__':
     start_http_server(8000)
     promCircleCi = prom_circleci.PromCircleCi()
 
-    project_slug = os.getenv('PROJECT_SLUG')
-    if project_slug is None:
-        print("PROJECT_SLUG env var is expected with format myorg/myrepo")
-        sys.exit(1)
-    promCircleCi.parse_insights(project_slug)
+    config = Config()
+
+    for org in config.organizations:
+        github_org = GitHubOrganization(org)
+        repos = github_org.repositories()
+
+        for repo in repos:
+            print(f'Preparing to parse insights for repo {repo}')
+            promCircleCi.parse_insights(repo)
 
     namespace = os.getenv('CIRCLECI_CONTAINER_NAMESPACE')
     promCircleCi.parse_container_runners(namespace=namespace)
-    
+
     # Generate some requests.
     while True:
         process_request(random.random())
