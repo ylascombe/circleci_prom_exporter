@@ -2,6 +2,9 @@ import requests
 from src.common import Common
 
 class GitHubOrganization:
+    def __init__(self, org) -> None:
+        self.org = org
+
     def repositories(self):
         """List repositories hosted in org
         """
