@@ -15,6 +15,7 @@ class PromCircleCi:
     def __init__(self) -> None:
         token = Config().circleci_token
         self.api = CircleCI(token=token)
+        self.gauges: Dict[str, Gauge] = {}
 
     def set_metric_value(self,
                          name:str,
@@ -22,22 +23,34 @@ class PromCircleCi:
                          labels:Dict[str,str],
                          value: Any
     ) -> None:
-        # gauge = REGISTRY.get_sample_value(name, labels)
-        for metric in REGISTRY.collect():
-            for s in metric.samples:
-                if s.name == name:
-                    print("found metric")
-                    if s.labels.keys() == labels.keys():
-                        print("match !!!!!!!!!!!!!!!!!!!")
-                        s.value = value
-                        #metric.
-                        return
-                    else:
-                        print(f"labels differs\ngiven{labels}\nbrowsed{s.labels}")
 
-        print("not found -----------------------------")
-        new = Gauge(name, desc, labels.keys())
-        new.labels(labels.values()).set(value=value)
+        values = list(labels.values())
+        keys = list(labels.keys())
+
+        key = name + '_' + '_'.join(keys)
+        #key = name
+
+        debug = f'###\nmetric with name {name} and key {key}, \nlabels keys {keys}\nlabelsvalues = {values}"\nname is {name}'
+        gauge = None
+
+        #if name == 'workflow_metrics_total_credits_used':
+        #    print("------------>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+        #    gauge = Gauge(key, desc, keys)
+        #    gauge.labels(project_slug='honestica/terraform', name='process-module-glue').set(value=value)
+        #    return
+        if key not in self.gauges:
+            print(f"Create gauge {debug}")
+            gauge = Gauge(key, desc, labels)
+            print(f'values={values}\n keys={keys}')
+            #gauge.labels(labels).set(value=value)
+            gauge.labels(labels).set(value=value)
+            self.gauges[key] = gauge
+        else:
+            print(f"found gauge {debug}")
+            gauge = self.gauges[key]
+            print(f'g={gauge}')
+            gauge.labels(labels).set(value=value)
+
 
     def parse_insights(self, project_slug:str) -> None:
         """
@@ -46,7 +59,6 @@ class PromCircleCi:
         """
         res = self.api.get_project_insights(project_slug)
 
-        print(res)
         for group in res['project_data']:
             project_data = res['project_data'][group]
             for metric in project_data:
@@ -54,11 +66,12 @@ class PromCircleCi:
                 labels = {
                     'project_slug' : project_slug
                 }
-                gauge = self.set_metric_value(name=key,
-                                              desc=metric,
-                                              labels=labels,
-                                              value=project_data[metric])
-                #gauge.labels(project_slug).set(project_data[metric])
+                self.set_metric_value(
+                    name=key,
+                    desc=metric,
+                    labels=labels,
+                    value=project_data[metric]
+                )
 
 
         for workflow in res['project_workflow_data']:
@@ -107,10 +120,21 @@ class PromCircleCi:
             },
         """
         workflow_name = workflow['workflow_name']
-        wn = workflow_name.replace('-', '_')
         for group in ['metrics','trends']:
             group_data = workflow[group]
             for metric in group_data:
-                key = f'workflow_{wn}_{group}_{metric}'
-                gauge = Gauge(key, metric,['project_slug', 'name'])
-                gauge.labels(project_slug, workflow_name).set(group_data[metric])
+                key = f'workflow_{group}_{metric}'
+
+                labels = {
+                    'project_slug': project_slug,
+                    'name' : workflow_name
+                }
+
+                self.set_metric_value(
+                    name=key,
+                    desc=metric,
+                    labels=labels,
+                    value=group_data[metric]
+                )
+                # gauge = Gauge(key, metric,['project_slug', 'name'])
+                # gauge.labels(project_slug, workflow_name).set(group_data[metric])
