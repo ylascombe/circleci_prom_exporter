@@ -33,23 +33,33 @@ class PromCircleCi:
         debug = f'###\nmetric with name {name} and key {key}, \nlabels keys {keys}\nlabelsvalues = {values}"\nname is {name}'
         gauge = None
 
-        #if name == 'workflow_metrics_total_credits_used':
-        #    print("------------>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        #    gauge = Gauge(key, desc, keys)
-        #    gauge.labels(project_slug='honestica/terraform', name='process-module-glue').set(value=value)
-        #    return
         if key not in self.gauges:
             print(f"Create gauge {debug}")
             gauge = Gauge(key, desc, labels)
-            print(f'values={values}\n keys={keys}')
+
+            # hack since line below do not work
             #gauge.labels(labels).set(value=value)
-            gauge.labels(labels).set(value=value)
+            if len(labels) > 1:
+                gauge.labels(
+                    project_slug=labels['project_slug'],
+                    name=labels['name']
+                    ).set(value=value)
+            else:
+                gauge.labels(labels).set(value=value)
             self.gauges[key] = gauge
         else:
             print(f"found gauge {debug}")
             gauge = self.gauges[key]
-            print(f'g={gauge}')
-            gauge.labels(labels).set(value=value)
+
+            # hack since line below do not work
+            #gauge.labels(labels).set(value=val
+            if len(labels) > 1:
+                gauge.labels(
+                    project_slug=labels['project_slug'],
+                    name=labels['name']
+                    ).set(value=value)
+            else:
+                gauge.labels(labels).set(value=value)
 
 
     def parse_insights(self, project_slug:str) -> None:
@@ -125,7 +135,7 @@ class PromCircleCi:
             for metric in group_data:
                 key = f'workflow_{group}_{metric}'
 
-                labels = {
+                labels:Dict[str, Any] = {
                     'project_slug': project_slug,
                     'name' : workflow_name
                 }

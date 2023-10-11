@@ -77,7 +77,7 @@ class CircleCI:
         (https://runner.circleci.com//api/v3/runner/tasks/running)
         """
         self.conn_runners =  http.client.HTTPSConnection("runner.circleci.com")
-        url = '/api/v3/runner?namespace={namespace}'
+        url = f'/api/v3/runner?namespace={namespace}'
         data = self._execute_api_call(url, self.conn_runners)
         return data['items']
 
